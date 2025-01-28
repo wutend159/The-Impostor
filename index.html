@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Impostor</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>The Impostor</h1>
+    <div id="setup">
+      <label for="username">Enter Your Username:</label>
+      <input type="text" id="username" placeholder="Your username">
+      <button id="joinGame">Join Game</button>
+    </div>
+    <div id="gameMasterSection" class="hidden">
+      <label for="word">Enter the Word:</label>
+      <input type="text" id="word" placeholder="Custom word">
+      <label for="impostorCount">Number of Impostors:</label>
+      <input type="number" id="impostorCount" min="1" max="5" value="1">
+      <button id="startRound">Start Round</button>
+    </div>
+    <div id="playerSection" class="hidden">
+      <h2 id="roleDisplay"></h2>
+      <p id="wordDisplay"></p>
+    </div>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>
