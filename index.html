@@ -12,15 +12,21 @@
 <body>
   <div class="container">
     <h1>The Impostor</h1>
+
+    <!-- Setup Section -->
     <div id="setup">
       <label for="username">Enter Your Username:</label>
       <input type="text" id="username" placeholder="Your username">
       <button id="joinGame">Join Game</button>
     </div>
+
+    <!-- Waiting Room Section -->
     <div id="waitingRoom" class="hidden">
       <h2>Waiting Room</h2>
       <p>Players:</p>
       <ul id="playerList"></ul>
+
+      <!-- Game Master Section -->
       <div id="gameMasterSection" class="hidden">
         <label for="word">Enter the Word:</label>
         <input type="text" id="word" placeholder="Custom word">
@@ -29,11 +35,14 @@
         <button id="startRound">Start Round</button>
       </div>
     </div>
+
+    <!-- Game Section -->
     <div id="gameSection" class="hidden">
       <h2 id="roleDisplay"></h2>
       <p id="wordDisplay"></p>
     </div>
   </div>
+
   <script src="script.js"></script>
 </body>
 </html>
