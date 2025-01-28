@@ -9,9 +9,6 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-const app = initializeApp(firebaseConfig);
-
-// Initialize Firebase
 const app = firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
@@ -24,9 +21,11 @@ let currentPlayer = null;
 // Join Game
 document.getElementById("joinGame").addEventListener("click", () => {
   const username = document.getElementById("username").value;
+  console.log("Join Game button clicked. Username:", username); // Debugging log
   if (username) {
     currentPlayer = username;
     players.push(username);
+    console.log("Players list updated:", players); // Debugging log
     updatePlayerList();
 
     // Hide setup and show waiting room
@@ -36,6 +35,7 @@ document.getElementById("joinGame").addEventListener("click", () => {
     // If this is the first player, make them the Game Master
     if (players.length === 1) {
       gameMaster = username;
+      console.log("Game Master set to:", gameMaster); // Debugging log
       document.getElementById("gameMasterSection").classList.remove("hidden");
     }
 
@@ -44,6 +44,10 @@ document.getElementById("joinGame").addEventListener("click", () => {
       username: username,
       role: "waiting",
       word: ""
+    }).then(() => {
+      console.log("Player added to Firestore:", username); // Debugging log
+    }).catch((error) => {
+      console.error("Error adding player to Firestore:", error); // Debugging log
     });
   }
 });
@@ -69,6 +73,10 @@ function assignRoles() {
     db.collection("players").doc(player).update({
       role: role,
       word: playerWord
+    }).then(() => {
+      console.log("Role assigned to player:", player, "Role:", role); // Debugging log
+    }).catch((error) => {
+      console.error("Error assigning role to player:", error); // Debugging log
     });
   });
 
