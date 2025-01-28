@@ -1,6 +1,7 @@
-// Import Firebase SDKs
-import { initializeApp } from "firebase/app";
-import { getFirestore, doc, setDoc, updateDoc, onSnapshot } from "firebase/firestore";
+<!-- Firebase App (Core SDK) -->
+<script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app.js"></script>
+<!-- Firebase Firestore -->
+<script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-firestore.js"></script>
 
 // Firebase configuration
 const firebaseConfig = {
