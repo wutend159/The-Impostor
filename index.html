@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>The Impostor</title>
   <link rel="stylesheet" href="style.css">
+  <!-- Add Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.1.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js"></script>
 </head>
 <body>
   <div class="container">
@@ -14,14 +17,19 @@
       <input type="text" id="username" placeholder="Your username">
       <button id="joinGame">Join Game</button>
     </div>
-    <div id="gameMasterSection" class="hidden">
-      <label for="word">Enter the Word:</label>
-      <input type="text" id="word" placeholder="Custom word">
-      <label for="impostorCount">Number of Impostors:</label>
-      <input type="number" id="impostorCount" min="1" max="5" value="1">
-      <button id="startRound">Start Round</button>
+    <div id="waitingRoom" class="hidden">
+      <h2>Waiting Room</h2>
+      <p>Players:</p>
+      <ul id="playerList"></ul>
+      <div id="gameMasterSection" class="hidden">
+        <label for="word">Enter the Word:</label>
+        <input type="text" id="word" placeholder="Custom word">
+        <label for="impostorCount">Number of Impostors:</label>
+        <input type="number" id="impostorCount" min="1" max="5" value="1">
+        <button id="startRound">Start Round</button>
+      </div>
     </div>
-    <div id="playerSection" class="hidden">
+    <div id="gameSection" class="hidden">
       <h2 id="roleDisplay"></h2>
       <p id="wordDisplay"></p>
     </div>
