@@ -17,6 +17,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+
 // Join Game
 document.getElementById("joinGame").addEventListener("click", async () => {
   const username = document.getElementById("username").value;
