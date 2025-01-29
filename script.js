@@ -1,182 +1,153 @@
-// Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyCRlFWyQZ3l0ZeE8424NRdm8sJgBBTb9EE",
-  authDomain: "the-impostor-2c85e.firebaseapp.com",
-  databaseURL: "https://the-impostor-2c85e-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "the-impostor-2c85e",
-  storageBucket: "the-impostor-2c85e.firebasestorage.app",
-  messagingSenderId: "645860033668",
-  appId: "1:645860033668:web:8b2ffa40f151cdacfbeed1"
-};
+// Firebase configuration remains the same
+const firebaseConfig = { /* your config */ };
 
 // Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 const realtimeDb = firebase.database();
 let currentPlayer = null;
 
-// Load saved username
-window.addEventListener("load", () => {
-  const savedUsername = localStorage.getItem("impostorUsername");
-  if (savedUsername) {
-    document.getElementById("username").value = savedUsername;
-    checkExistingGameState(savedUsername);
-  }
-});
-
-// Join Game
-document.getElementById("joinGame").addEventListener("click", () => {
-  const username = document.getElementById("username").value.trim();
-  if (username) {
-    localStorage.setItem("impostorUsername", username);
-    currentPlayer = username;
-    initializePlayer(username);
-    
-    // Special case for debug GM
-    if (username === "gma") {
-      document.getElementById("debugControls").classList.remove("hidden");
-    }
-  }
-});
-
-// Initialize player
+// Improved player initialization
 function initializePlayer(username) {
-  realtimeDb.ref("players/" + username).once("value").then((snapshot) => {
-    const existingData = snapshot.val();
-
-    const playerData = existingData || {
-      username: username,
-      ready: false,
-      role: "waiting",
-      word: "",
-      isGameMaster: false,
-      hasBeenGM: false
-    };
-
-    realtimeDb.ref("players/" + username).set(playerData)
-      .then(() => handleGameState(username));
+  realtimeDb.ref("players/" + username).transaction((currentData) => {
+    if (!currentData) {
+      return {
+        username: username,
+        ready: false,
+        role: "waiting",
+        word: "",
+        isGameMaster: false,
+        hasBeenGM: false,
+        timestamp: firebase.database.ServerValue.TIMESTAMP
+      };
+    }
+    return currentData;
+  }).then(() => {
+    if (username !== "gma") handleGameState(username);
   });
 }
 
-// Ready Button Handler
-function setupReadyButton(username) {
+// Enhanced ready system
+function setupReadySystem(username) {
   const readyButton = document.getElementById("readyButton");
   readyButton.classList.remove("hidden");
+
+  const readyRef = realtimeDb.ref(`players/${username}/ready`);
   
-  realtimeDb.ref("players/" + username + "/ready").on("value", (snapshot) => {
+  readyRef.on("value", (snapshot) => {
     const isReady = snapshot.val();
     readyButton.textContent = isReady ? "UNREADY" : "READY";
     readyButton.className = isReady ? "ready" : "not-ready";
   });
 
-  readyButton.onclick = () => {
-    const currentReady = document.getElementById("readyButton").classList.contains("ready");
-    realtimeDb.ref("players/" + username + "/ready").set(!currentReady);
-  };
+  readyButton.onclick = () => readyRef.set(!readyButton.classList.contains("ready"));
 }
 
-// Check if all players are ready
-function checkAllReady(players) {
-  return Object.values(players).every(p => p.ready);
-}
+// Robust game starter
+function startGame(players) {
+  try {
+    const eligiblePlayers = Object.values(players)
+      .filter(p => p.username !== "gma" && !p.hasBeenGM);
+    
+    if (eligiblePlayers.length === 0) {
+      // Reset GM history for new round
+      Object.keys(players).forEach(username => {
+        if (username !== "gma") {
+          realtimeDb.ref(`players/${username}/hasBeenGM`).set(false);
+        }
+      });
+      return startGame(players); // Recursive call with reset status
+    }
 
-// Elect Game Master
-function electGameMaster(players) {
-  const eligiblePlayers = Object.values(players)
-    .filter(p => p.username !== "gma" && !p.hasBeenGM);
-  
-  if (eligiblePlayers.length === 0) {
-    // All players have been GM, reset status
-    Object.keys(players).forEach(username => {
-      realtimeDb.ref("players/" + username + "/hasBeenGM").set(false);
+    const nextGM = eligiblePlayers.reduce((prev, current) => 
+      (prev.timestamp < current.timestamp) ? prev : current
+    ).username;
+
+    realtimeDb.ref("gameState").update({
+      gameMaster: nextGM,
+      gameStarted: true,
+      word: "",
+      impostorCount: 1
     });
-    return electGameMaster(players);
+
+    realtimeDb.ref(`players/${nextGM}`).update({
+      hasBeenGM: true,
+      isGameMaster: true
+    });
+
+  } catch (error) {
+    console.error("Game start failed:", error);
+    realtimeDb.ref("gameState/gameStarted").set(false);
   }
-  
-  const nextGM = eligiblePlayers[0].username;
-  realtimeDb.ref("gameState").update({
-    gameMaster: nextGM,
-    gameStarted: true
-  });
-  realtimeDb.ref("players/" + nextGM).update({
-    hasBeenGM: true,
-    isGameMaster: true
-  });
 }
 
-// Game state handling
-function handleGameState(username) {
-  realtimeDb.ref("gameState").once("value", (snapshot) => {
-    const gameState = snapshot.val() || { gameStarted: false };
-
-    if (gameState.gameStarted) {
-      showGameSection(username);
-    } else {
-      document.getElementById("setup").classList.add("hidden");
-      document.getElementById("waitingRoom").classList.remove("hidden");
-      setupReadyButton(username);
-      checkGameMasterStatus();
-    }
-  });
-
-  // Listen for all players' ready status
-  realtimeDb.ref("players").on("value", (snapshot) => {
-    const players = snapshot.val() || {};
-    if (checkAllReady(players) && Object.keys(players).length > 1) {
-      electGameMaster(players);
-    }
-  });
-}
-
-// Remove individual player (GMA only)
+// Secure player removal
 function removePlayer(username) {
-  realtimeDb.ref("players/" + username).remove();
+  if (currentPlayer === "gma" && username !== "gma") {
+    realtimeDb.ref(`players/${username}`).remove()
+      .then(() => console.log(`Removed ${username}`))
+      .catch(console.error);
+  }
 }
 
-// Debug controls
-document.getElementById("clearPlayers").addEventListener("click", () => {
-  realtimeDb.ref("players").remove();
-  realtimeDb.ref("gameState").update({
-    gameMaster: "",
-    word: "",
-    gameStarted: false
-  });
-});
+// Complete game reset
+function fullGameReset() {
+  if (currentPlayer === "gma") {
+    realtimeDb.ref("players").remove();
+    realtimeDb.ref("gameState").set({
+      gameMaster: "",
+      word: "",
+      impostorCount: 1,
+      gameStarted: false
+    });
+  }
+}
 
-// Render player list with remove buttons
+// Enhanced player list rendering
 function renderPlayerList(players) {
   const playerList = document.getElementById("playerList");
-  playerList.innerHTML = Object.values(players).map(player => `
-    <li>
+  const filteredPlayers = Object.values(players).filter(p => p.username !== "gma");
+  
+  playerList.innerHTML = filteredPlayers.map(player => `
+    <li class="${player.ready ? 'ready-player' : ''}">
       ${player.username}
-      ${player.ready ? '✅' : '❌'}
-      ${currentPlayer === "gma" ? `<button onclick="removePlayer('${player.username}')">Remove</button>` : ''}
+      ${currentPlayer === "gma" ? `
+        <button class="remove-btn" onclick="removePlayer('${player.username}')">
+          🗑️
+        </button>
+      ` : ''}
     </li>
   `).join("");
+
+  // Update ready count display
+  const readyCount = filteredPlayers.filter(p => p.ready).length;
+  document.getElementById("readyCount").textContent = 
+    `${readyCount}/${filteredPlayers.length} ready`;
 }
 
-// Update UI
-function showGameSection(username) {
-  document.getElementById("setup").classList.add("hidden");
-  document.getElementById("waitingRoom").classList.add("hidden");
-  document.getElementById("gameSection").classList.remove("hidden");
-
-  realtimeDb.ref("players/" + username).on("value", (snapshot) => {
-    const playerData = snapshot.val();
-    if (playerData.isGameMaster) {
-      document.getElementById("gmControls").classList.remove("hidden");
-      document.getElementById("playerSection").classList.add("hidden");
-    } else {
-      document.getElementById("roleDisplay").textContent = `You are ${playerData.role}!`;
-      document.getElementById("wordDisplay").textContent = 
-        playerData.role === "impostor" ? 
-        "You do not know the word." : 
-        `The word is: ${playerData.word}`;
+// Game state manager
+function manageGameState() {
+  realtimeDb.ref("players").on("value", (snapshot) => {
+    const players = snapshot.val() || {};
+    const validPlayers = Object.values(players).filter(p => p.username !== "gma");
+    
+    renderPlayerList(players);
+    
+    if (validPlayers.length > 1 && 
+        validPlayers.every(p => p.ready) &&
+        !realtimeDb.gameStarted) {
+      startGame(players);
     }
   });
 }
 
-// Initialize
-realtimeDb.ref("players").on("value", (snapshot) => {
-  const players = snapshot.val() || {};
-  renderPlayerList(players);
+// Initialize everything
+window.addEventListener("load", () => {
+  // Existing load logic
+  
+  // New initialization flow
+  manageGameState();
+  if (currentPlayer === "gma") {
+    document.getElementById("debugControls").classList.remove("hidden");
+    document.getElementById("waitingRoom").classList.add("hidden");
+  }
 });
