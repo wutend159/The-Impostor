@@ -40,3 +40,16 @@ button:hover {
   list-style-type: none;
   padding: 0;
 }
+
+#gmControls {
+  margin-top: 20px;
+  padding: 15px;
+  background: #f0f0f0;
+  border-radius: 8px;
+}
+
+#debugControls {
+  position: fixed;
+  bottom: 10px;
+  right: 10px;
+}
