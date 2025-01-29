@@ -1,5 +1,13 @@
-// Firebase configuration remains the same
-const firebaseConfig = { /* your config */ };
+// Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyCRlFWyQZ3l0ZeE8424NRdm8sJgBBTb9EE",
+  authDomain: "the-impostor-2c85e.firebaseapp.com",
+  databaseURL: "https://the-impostor-2c85e-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "the-impostor-2c85e",
+  storageBucket: "the-impostor-2c85e.firebasestorage.app",
+  messagingSenderId: "645860033668",
+  appId: "1:645860033668:web:8b2ffa40f151cdacfbeed1"
+};
 
 // Initialize Firebase
 firebase.initializeApp(firebaseConfig);
