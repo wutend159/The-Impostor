@@ -1,4 +1,4 @@
-// Firebase configuration
+// Firebase Configuration
 const firebaseConfig = {
   apiKey: "AIzaSyCRlFWyQZ3l0ZeE8424NRdm8sJgBBTb9EE",
   authDomain: "the-impostor-2c85e.firebaseapp.com",
@@ -10,60 +10,121 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-firebase.initializeApp(firebaseConfig);
+const app = firebase.initializeApp(firebaseConfig);
 const realtimeDb = firebase.database();
 let currentPlayer = null;
 
-// Improved player initialization
-function initializePlayer(username) {
-  realtimeDb.ref("players/" + username).transaction((currentData) => {
-    if (!currentData) {
-      return {
-        username: username,
-        ready: false,
-        role: "waiting",
-        word: "",
-        isGameMaster: false,
-        hasBeenGM: false,
-        timestamp: firebase.database.ServerValue.TIMESTAMP
-      };
+// UI Elements
+const setupUI = document.getElementById("setup");
+const waitingRoomUI = document.getElementById("waitingRoom");
+const gameSectionUI = document.getElementById("gameSection");
+const readyButton = document.getElementById("readyButton");
+
+// Initialize on Load
+window.addEventListener("load", () => {
+  const savedUsername = localStorage.getItem("impostorUsername");
+  if (savedUsername) {
+    document.getElementById("username").value = savedUsername;
+    checkExistingGameState(savedUsername);
+  }
+});
+
+// Join Game Handler
+document.getElementById("joinGame").addEventListener("click", async () => {
+  const username = document.getElementById("username").value.trim();
+  if (!username) return;
+
+  try {
+    setButtonState("joinGame", true);
+    
+    if (username === "gma") {
+      handleGmaLogin();
+      return;
     }
-    return currentData;
-  }).then(() => {
-    if (username !== "gma") handleGameState(username);
+
+    await initializePlayer(username);
+    setupUI.classList.add("hidden");
+    waitingRoomUI.classList.remove("hidden");
+    setupReadySystem(username);
+    checkGameMasterStatus();
+    
+  } catch (error) {
+    console.error("Join error:", error);
+    alert("Failed to join. Please try again.");
+  } finally {
+    setButtonState("joinGame", false);
+  }
+});
+
+// Player Initialization
+async function initializePlayer(username) {
+  return new Promise((resolve, reject) => {
+    realtimeDb.ref("players/" + username).transaction(currentData => {
+      if (!currentData) {
+        return {
+          username: username,
+          ready: false,
+          role: "waiting",
+          word: "",
+          isGameMaster: false,
+          hasBeenGM: false,
+          timestamp: firebase.database.ServerValue.TIMESTAMP
+        };
+      }
+      return currentData;
+    }).then(transactionResult => {
+      if (transactionResult.committed) {
+        currentPlayer = username;
+        localStorage.setItem("impostorUsername", username);
+        resolve();
+      } else {
+        reject("Username already exists");
+      }
+    });
   });
 }
 
-// Enhanced ready system
+// Ready System
 function setupReadySystem(username) {
-  const readyButton = document.getElementById("readyButton");
-  readyButton.classList.remove("hidden");
-
   const readyRef = realtimeDb.ref(`players/${username}/ready`);
   
-  readyRef.on("value", (snapshot) => {
+  readyRef.on("value", snapshot => {
     const isReady = snapshot.val();
     readyButton.textContent = isReady ? "UNREADY" : "READY";
     readyButton.className = isReady ? "ready" : "not-ready";
   });
 
-  readyButton.onclick = () => readyRef.set(!readyButton.classList.contains("ready"));
+  readyButton.onclick = () => {
+    const currentReady = readyButton.classList.contains("ready");
+    readyRef.set(!currentReady);
+  };
 }
 
-// Robust game starter
+// Game State Management
+function manageGameState() {
+  realtimeDb.ref("players").on("value", snapshot => {
+    const players = snapshot.val() || {};
+    const validPlayers = Object.values(players).filter(p => p.username !== "gma");
+    
+    renderPlayerList(players);
+    
+    if (validPlayers.length > 1 && 
+        validPlayers.every(p => p.ready) &&
+        !players.gameStarted) {
+      startGame(players);
+    }
+  });
+}
+
+// Start Game
 function startGame(players) {
   try {
     const eligiblePlayers = Object.values(players)
       .filter(p => p.username !== "gma" && !p.hasBeenGM);
     
     if (eligiblePlayers.length === 0) {
-      // Reset GM history for new round
-      Object.keys(players).forEach(username => {
-        if (username !== "gma") {
-          realtimeDb.ref(`players/${username}/hasBeenGM`).set(false);
-        }
-      });
-      return startGame(players); // Recursive call with reset status
+      resetGMHistory(players);
+      return startGame(players);
     }
 
     const nextGM = eligiblePlayers.reduce((prev, current) => 
@@ -88,32 +149,11 @@ function startGame(players) {
   }
 }
 
-// Secure player removal
-function removePlayer(username) {
-  if (currentPlayer === "gma" && username !== "gma") {
-    realtimeDb.ref(`players/${username}`).remove()
-      .then(() => console.log(`Removed ${username}`))
-      .catch(console.error);
-  }
-}
-
-// Complete game reset
-function fullGameReset() {
-  if (currentPlayer === "gma") {
-    realtimeDb.ref("players").remove();
-    realtimeDb.ref("gameState").set({
-      gameMaster: "",
-      word: "",
-      impostorCount: 1,
-      gameStarted: false
-    });
-  }
-}
-
-// Enhanced player list rendering
+// Player List Rendering
 function renderPlayerList(players) {
   const playerList = document.getElementById("playerList");
-  const filteredPlayers = Object.values(players).filter(p => p.username !== "gma");
+  const filteredPlayers = Object.values(players)
+    .filter(p => p.username !== "gma" && p.username !== currentPlayer);
   
   playerList.innerHTML = filteredPlayers.map(player => `
     <li class="${player.ready ? 'ready-player' : ''}">
@@ -126,36 +166,51 @@ function renderPlayerList(players) {
     </li>
   `).join("");
 
-  // Update ready count display
-  const readyCount = filteredPlayers.filter(p => p.ready).length;
   document.getElementById("readyCount").textContent = 
-    `${readyCount}/${filteredPlayers.length} ready`;
+    `${filteredPlayers.filter(p => p.ready).length}/${filteredPlayers.length} ready`;
 }
 
-// Game state manager
-function manageGameState() {
-  realtimeDb.ref("players").on("value", (snapshot) => {
-    const players = snapshot.val() || {};
-    const validPlayers = Object.values(players).filter(p => p.username !== "gma");
-    
-    renderPlayerList(players);
-    
-    if (validPlayers.length > 1 && 
-        validPlayers.every(p => p.ready) &&
-        !realtimeDb.gameStarted) {
-      startGame(players);
+// Debug Functions
+function handleGmaLogin() {
+  document.getElementById("debugControls").classList.remove("hidden");
+  setupUI.classList.add("hidden");
+  waitingRoomUI.classList.add("hidden");
+  gameSectionUI.classList.add("hidden");
+}
+
+function removePlayer(username) {
+  if (currentPlayer === "gma" && username !== "gma") {
+    realtimeDb.ref(`players/${username}`).remove();
+  }
+}
+
+function fullGameReset() {
+  if (currentPlayer === "gma") {
+    realtimeDb.ref("players").remove();
+    realtimeDb.ref("gameState").set({
+      gameMaster: "",
+      word: "",
+      impostorCount: 1,
+      gameStarted: false
+    });
+  }
+}
+
+// Utilities
+function setButtonState(buttonId, isLoading) {
+  const btn = document.getElementById(buttonId);
+  btn.disabled = isLoading;
+  btn.querySelector('.default-text').classList.toggle('hidden', isLoading);
+  btn.querySelector('.loading-text').classList.toggle('hidden', !isLoading);
+}
+
+function resetGMHistory(players) {
+  Object.keys(players).forEach(username => {
+    if (username !== "gma") {
+      realtimeDb.ref(`players/${username}/hasBeenGM`).set(false);
     }
   });
 }
 
-// Initialize everything
-window.addEventListener("load", () => {
-  // Existing load logic
-  
-  // New initialization flow
-  manageGameState();
-  if (currentPlayer === "gma") {
-    document.getElementById("debugControls").classList.remove("hidden");
-    document.getElementById("waitingRoom").classList.add("hidden");
-  }
-});
+// Initialize Game
+manageGameState();
