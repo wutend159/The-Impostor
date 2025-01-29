@@ -1,23 +1,24 @@
-<script type="module">
-  // Import the functions you need from the SDKs you need
+// Import the functions you need from the SDKs you need
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.2.0/firebase-app.js";
-  // TODO: Add SDKs for Firebase products that you want to use
-  // https://firebase.google.com/docs/web/setup#available-libraries
+=======
+// Import all necessary Firebase SDKs
+import { 
+  initializeApp, 
+  getAuth,
+  createDatabase,
+  createRealtimeDatabase,
+  createStorageBucket,
+} from "https://www.gstatic.com/firebasejs/11.2.0/firebase-app.js";
 
-  // Your web app's Firebase configuration
-  const firebaseConfig = {
-    apiKey: "AIzaSyCRlFWyQZ3l0ZeE8424NRdm8sJgBBTb9EE",
-    authDomain: "the-impostor-2c85e.firebaseapp.com",
-    databaseURL: "https://the-impostor-2c85e-default-rtdb.europe-west1.firebasedatabase.app",
-    projectId: "the-impostor-2c85e",
-    storageBucket: "the-impostor-2c85e.firebasestorage.app",
-    messagingSenderId: "645860033668",
-    appId: "1:645860033668:web:8b2ffa40f151cdacfbeed1"
-  };
-
-  // Initialize Firebase
-  const app = initializeApp(firebaseConfig);
-</script>
+// Firebase configuration (replace with your own)
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_AUTH_DOMAIN",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_STORAGE_BUCKET",
+  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
 
 // Initialize Firebase
 const app = firebase.initializeApp(firebaseConfig);
