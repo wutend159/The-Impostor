@@ -112,3 +112,26 @@ button:hover {
 #username:invalid {
   border-color: #ff4444;
 }
+
+/* Add to existing styles */
+#playerList li {
+  margin: 8px 0;
+  padding: 8px;
+  background: #f8f8f8;
+  border-radius: 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.remove-btn {
+  background: none;
+  border: none;
+  color: #ff4444;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.remove-btn:hover {
+  background: #ffecec;
+}
