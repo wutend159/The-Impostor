@@ -1,28 +1,17 @@
-// Import the functions you need from the SDKs you need
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.2.0/firebase-app.js";
-=======
-// Import all necessary Firebase SDKs
-import { 
-  initializeApp, 
-  getAuth,
-  createDatabase,
-  createRealtimeDatabase,
-  createStorageBucket,
-} from "https://www.gstatic.com/firebasejs/11.2.0/firebase-app.js";
-
 // Firebase configuration (replace with your own)
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyCRlFWyQZ3l0ZeE8424NRdm8sJgBBTb9EE",
+  authDomain: "the-impostor-2c85e.firebaseapp.com",
+  databaseURL: "https://the-impostor-2c85e-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "the-impostor-2c85e",
+  storageBucket: "the-impostor-2c85e.firebasestorage.app",
+  messagingSenderId: "645860033668",
+  appId: "1:645860033668:web:8b2ffa40f151cdacfbeed1"
 };
 
 // Initialize Firebase
 const app = firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
+const realtimeDb = firebase.database(); // Initialize Realtime Database
 
 let players = [];
 let gameMaster = null;
@@ -51,16 +40,8 @@ document.getElementById("joinGame").addEventListener("click", () => {
       document.getElementById("gameMasterSection").classList.remove("hidden");
     }
 
-    // Sync players with Firestore
-    db.collection("players").doc(username).set({
-      username: username,
-      role: "waiting",
-      word: ""
-    }).then(() => {
-      console.log("Player added to Firestore:", username); // Debugging log
-    }).catch((error) => {
-      console.error("Error adding player to Firestore:", error); // Debugging log
-    });
+    // Add player to Realtime Database
+    addPlayerToRealtimeDb(username);
   }
 });
 
@@ -73,6 +54,19 @@ document.getElementById("startRound").addEventListener("click", () => {
   }
 });
 
+// Add Player to Realtime Database
+function addPlayerToRealtimeDb(username) {
+  realtimeDb.ref("players/" + username).set({
+    username: username,
+    role: "waiting",
+    word: ""
+  }).then(() => {
+    console.log("Player added to Realtime Database:", username); // Debugging log
+  }).catch((error) => {
+    console.error("Error adding player to Realtime Database:", error); // Debugging log
+  });
+}
+
 // Assign Roles
 function assignRoles() {
   const impostors = chooseImpostors(players, impostorCount);
@@ -81,8 +75,8 @@ function assignRoles() {
     const role = isImpostor ? "impostor" : "player";
     const playerWord = isImpostor ? "Impostor" : word;
 
-    // Update Firestore with roles and words
-    db.collection("players").doc(player).update({
+    // Update Realtime Database with roles and words
+    realtimeDb.ref("players/" + player).update({
       role: role,
       word: playerWord
     }).then(() => {
@@ -109,9 +103,9 @@ function updatePlayerList() {
 }
 
 // Listen for Role Updates
-db.collection("players").doc(currentPlayer).onSnapshot((doc) => {
-  const data = doc.data();
-  if (data.role !== "waiting") {
+realtimeDb.ref("players/" + currentPlayer).on("value", (snapshot) => {
+  const data = snapshot.val();
+  if (data && data.role !== "waiting") {
     document.getElementById("waitingRoom").classList.add("hidden");
     document.getElementById("gameSection").classList.remove("hidden");
 
