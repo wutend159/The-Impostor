@@ -103,3 +103,12 @@ button:hover {
   font-size: 0.9em;
   color: #666;
 }
+
+#joinGame:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+#username:invalid {
+  border-color: #ff4444;
+}
