@@ -135,3 +135,9 @@ button:hover {
 .remove-btn:hover {
   background: #ffecec;
 }
+
+#playerCountWarning {
+  color: #ff4444;
+  margin: 10px 0;
+  display: none;
+}
