@@ -10,7 +10,7 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-const app = firebase.initializeApp(firebaseConfig);
+firebase.initializeApp(firebaseConfig);
 const realtimeDb = firebase.database(); // Initialize Realtime Database
 
 let players = [];
