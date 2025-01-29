@@ -13,36 +13,33 @@
   <div class="container">
     <h1>The Impostor</h1>
 
-    <!-- Setup Section -->
-    <div id="setup">
-      <label for="username">Enter Your Username:</label>
-      <input type="text" id="username" placeholder="Your username" required>
-      <button id="joinGame">
-        <span class="default-text">Join Game</span>
-        <span class="loading-text hidden">Joining...</span>
-      </button>
-    </div>
+<!-- Setup Screen -->
+<div id="setup">
+  <input type="text" id="username" placeholder="Enter username">
+  <button id="joinGame">Join Game</button>
+</div>
 
     <!-- Waiting Room Section -->
     <div id="waitingRoom" class="hidden">
       <h2>Waiting Room</h2>
-      <p>Players:</p>
-      <ul id="playerList"></ul>
+      <button id="readyButton">READY</button>
+      <p>Players ready: <span id="readyCount">0</span></p>
+    </div>
 
       <!-- Game Master Section -->
-      <div id="gameMasterSection" class="hidden">
-        <label for="word">Enter the Word:</label>
-        <input type="text" id="word" placeholder="Custom word">
-        <label for="impostorCount">Number of Impostors:</label>
-        <input type="number" id="impostorCount" min="1" max="5" value="1">
+      <div id="gameMasterUI" class="hidden">
+        <h2>Game Master Controls</h2>
+        <input type="text" id="gmWord" placeholder="Enter word">
+        <input type="number" id="impostorCount" min="1" value="1">
         <button id="startRound">Start Round</button>
+        <button id="nextRound">Next Round</button>
       </div>
     </div>
 
     <!-- Game Section -->
-    <div id="gameSection" class="hidden">
-      <h2 id="roleDisplay"></h2>
-      <p id="wordDisplay"></p>
+    <div id="playerUI" class="hidden">
+      <h2 id="playerRole"></h2>
+      <p id="playerWord"></p>
     </div>
     
     <!-- Game Master Controls -->
@@ -52,8 +49,10 @@
       <button id="startNextRound">Start Next Round</button>
     </div>    
     
-    <div id="debugControls" class="hidden">
-      <button onclick="fullGameReset()">Reset Entire Game</button>
+    <div id="adminUI" class="hidden">
+      <h2>Admin Controls</h2>
+      <div id="adminPlayerList"></div>
+      <button id="resetGame">Reset Entire Game</button>
     </div>
 
     <!-- Add to waiting room -->

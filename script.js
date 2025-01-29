@@ -13,33 +13,21 @@ const firebaseConfig = {
 const app = firebase.initializeApp(firebaseConfig);
 const realtimeDb = firebase.database();
 let currentPlayer = null;
-let isGameStarting = false;
 
 // DOM Elements
 const setupUI = document.getElementById("setup");
 const waitingRoomUI = document.getElementById("waitingRoom");
-const gameSectionUI = document.getElementById("gameSection");
-const readyButton = document.getElementById("readyButton");
+const gameMasterUI = document.getElementById("gameMasterUI");
+const playerUI = document.getElementById("playerUI");
+const adminUI = document.getElementById("adminUI");
 
-// Utility Functions
-function setButtonState(buttonId, isLoading) {
-  const btn = document.getElementById(buttonId);
-  if (!btn) return;
-  
-  btn.disabled = isLoading;
-  const defaultText = btn.querySelector('.default-text');
-  const loadingText = btn.querySelector('.loading-text');
-  
-  if (defaultText) defaultText.classList.toggle('hidden', isLoading);
-  if (loadingText) loadingText.classList.toggle('hidden', !isLoading);
-}
-
-// Initialize on Load
-window.addEventListener("load", () => {
-  const savedUsername = localStorage.getItem("impostorUsername");
-  if (savedUsername) {
-    document.getElementById("username").value = savedUsername;
-  }
+// Initialize Game State
+realtimeDb.ref("gameState").set({
+  gameMaster: "",
+  word: "",
+  impostorCount: 1,
+  gameStarted: false,
+  roundActive: false
 });
 
 // Join Game Handler
@@ -47,262 +35,169 @@ document.getElementById("joinGame").addEventListener("click", async () => {
   const username = document.getElementById("username").value.trim();
   if (!username) return;
 
-  try {
-    setButtonState("joinGame", true);
-    
-    if (username === "gma") {
-      handleGmaLogin();
-      return;
-    }
+  if (username === "gma") {
+    handleAdminLogin();
+    return;
+  }
 
-    await initializePlayer(username);
-    if (setupUI) setupUI.classList.add("hidden");
-    if (waitingRoomUI) waitingRoomUI.classList.remove("hidden");
+  try {
+    await realtimeDb.ref(`players/${username}`).set({
+      username: username,
+      ready: false,
+      role: "waiting",
+      word: "",
+      isGameMaster: false,
+      hasBeenGM: false,
+      timestamp: Date.now()
+    });
+
+    currentPlayer = username;
+    localStorage.setItem("impostorUsername", username);
+    setupUI.classList.add("hidden");
+    waitingRoomUI.classList.remove("hidden");
+    
     setupReadySystem(username);
     checkGameMasterStatus();
-    
+
   } catch (error) {
-    console.error("Join error:", error);
-    alert(typeof error === 'string' ? error : "Join failed. Try again.");
-  } finally {
-    setButtonState("joinGame", false);
+    alert("Failed to join game");
   }
 });
 
-// Player Initialization
-async function initializePlayer(username) {
-  return new Promise((resolve, reject) => {
-    realtimeDb.ref("players/" + username).transaction(currentData => {
-      if (currentData === null) {
-        return {
-          username: username,
-          ready: false,
-          role: "waiting",
-          word: "",
-          isGameMaster: false,
-          hasBeenGM: false,
-          timestamp: Date.now()
-        };
-      }
-      return currentData;
-    }, (error, committed) => {
-      if (error) {
-        reject("Connection error");
-      } else if (!committed) {
-        reject("Username already exists");
-      } else {
-        currentPlayer = username;
-        localStorage.setItem("impostorUsername", username);
-        resolve();
-      }
-    }, false);
-  });
-}
-
 // Ready System
 function setupReadySystem(username) {
-  if (!readyButton) return;
-
   const readyRef = realtimeDb.ref(`players/${username}/ready`);
   
   readyRef.on("value", snapshot => {
     const isReady = snapshot.val();
-    readyButton.textContent = isReady ? "UNREADY" : "READY";
-    readyButton.className = isReady ? "ready" : "not-ready";
+    document.getElementById("readyButton").textContent = 
+      isReady ? "UNREADY" : "READY";
   });
 
-  readyButton.onclick = () => {
-    const currentReady = readyButton.classList.contains("ready");
-    readyRef.set(!currentReady);
+  document.getElementById("readyButton").onclick = () => {
+    readyRef.set(!document.getElementById("readyButton").textContent === "READY");
   };
 }
 
-// Game Master Status Check
+// Game Master Flow
 function checkGameMasterStatus() {
-  realtimeDb.ref("gameState/gameMaster").on("value", (snapshot) => {
+  realtimeDb.ref("gameState/gameMaster").on("value", async (snapshot) => {
     const gameMaster = snapshot.val();
-    const isGM = gameMaster === currentPlayer;
     
-    const gmControls = document.getElementById("gmControls");
-    if (gmControls) gmControls.classList.toggle("hidden", !isGM);
+    if (gameMaster === currentPlayer) {
+      waitingRoomUI.classList.add("hidden");
+      gameMasterUI.classList.remove("hidden");
+      
+      // GM Controls
+      document.getElementById("startRound").onclick = async () => {
+        const word = document.getElementById("gmWord").value;
+        const impostorCount = document.getElementById("impostorCount").value;
+        
+        await realtimeDb.ref("gameState").update({
+          word: word,
+          impostorCount: impostorCount,
+          roundActive: true
+        });
+        
+        assignRoles(word, impostorCount);
+      };
+    }
   });
 }
 
-// Game State Management
-function manageGameState() {
-  realtimeDb.ref("players").on("value", snapshot => {
-    const players = snapshot.val() || {};
-    const validPlayers = Object.values(players).filter(p => 
-      p.username !== "gma" && !p.isGameMaster
-    );
-
-    renderPlayerList(players);
+// Player Flow
+realtimeDb.ref("gameState/roundActive").on("value", (snapshot) => {
+  if (snapshot.val() && currentPlayer !== "gma") {
+    waitingRoomUI.classList.add("hidden");
+    playerUI.classList.remove("hidden");
     
-    realtimeDb.ref("gameState/gameStarted").once("value", (gameStateSnap) => {
-      if (!gameStateSnap.val() && 
-          validPlayers.length >= 4 && // Minimum 4 players
-          validPlayers.every(p => p.ready) &&
-          !isGameStarting) {
-        startGame(players);
-      }
+    realtimeDb.ref(`players/${currentPlayer}`).once("value", (playerSnap) => {
+      const player = playerSnap.val();
+      document.getElementById("playerRole").textContent = 
+        `You are ${player.role === "impostor" ? "the IMPOSTOR" : "a PLAYER"}`;
+      document.getElementById("playerWord").textContent = 
+        player.role === "impostor" ? "You don't know the word!" : `The word is: ${player.word}`;
     });
-  });
-}
-
-// Start Game
-async function startGame(players) {
-  if (isGameStarting) return;
-  isGameStarting = true;
-
-  try {
-    const freshSnapshot = await realtimeDb.ref("players").once("value");
-    const freshPlayers = freshSnapshot.val() || {};
-    
-    let eligiblePlayers = Object.values(freshPlayers)
-      .filter(p => p.username !== "gma" && !p.hasBeenGM);
-
-    if (eligiblePlayers.length === 0) {
-      const updates = {};
-      Object.keys(freshPlayers).forEach(username => {
-        if (username !== "gma") updates[`${username}/hasBeenGM`] = false;
-      });
-      await realtimeDb.ref("players").update(updates);
-      eligiblePlayers = Object.values(freshPlayers).filter(p => p.username !== "gma");
-    }
-
-    const nextGM = eligiblePlayers.reduce((prev, current) => 
-      prev.timestamp < current.timestamp ? prev : current
-    ).username;
-
-    await realtimeDb.ref("gameState").update({
-      gameMaster: nextGM,
-      gameStarted: true,
-      word: "",
-      impostorCount: 1
-    });
-
-    await realtimeDb.ref(`players/${nextGM}`).update({
-      hasBeenGM: true,
-      isGameMaster: true
-    });
-
-    // Assign roles to other players
-    const playersToUpdate = Object.values(freshPlayers)
-      .filter(p => p.username !== nextGM && p.username !== "gma");
-    
-    playersToUpdate.forEach(player => {
-      realtimeDb.ref(`players/${player.username}`).update({
-        role: "player",
-        word: "Impostor"
-      });
-    });
-
-  } catch (error) {
-    console.error("Game start error:", error);
-  } finally {
-    isGameStarting = false;
-  }
-}
-
-// Player List Rendering
-function renderPlayerList(players) {
-  const playerList = document.getElementById("playerList");
-  const warning = document.getElementById("playerCountWarning");
-  const filteredPlayers = Object.values(players)
-    .filter(p => p.username !== "gma" && p.username !== currentPlayer);
-
-  if (playerList) {
-    playerList.innerHTML = filteredPlayers.map(player => `
-      <li class="${player.ready ? 'ready-player' : ''}">
-        ${player.username} ${player.ready ? '✅' : '❌'}
-        ${currentPlayer === "gma" ? `
-          <button class="remove-btn" onclick="removePlayer('${player.username}')">
-            🗑️
-          </button>
-        ` : ''}
-      </li>
-    `).join("");
-  }
-
-  if (warning) {
-    warning.style.display = filteredPlayers.length < 4 ? "block" : "none";
-  }
-
-  const readyCount = filteredPlayers.filter(p => p.ready).length;
-  if (document.getElementById("readyCount")) {
-    document.getElementById("readyCount").textContent = 
-      `${readyCount}/${filteredPlayers.length} ready`;
-  }
-}
-
-// Next Round Handler
-document.getElementById("startNextRound")?.addEventListener("click", async () => {
-  try {
-    // Reset game state
-    await realtimeDb.ref("gameState").update({
-      gameStarted: false,
-      word: "",
-      impostorCount: 1
-    });
-
-    // Reset players
-    const playersSnap = await realtimeDb.ref("players").once("value");
-    const players = playersSnap.val() || {};
-    
-    const updates = {};
-    Object.keys(players).forEach(username => {
-      if (username !== "gma") {
-        updates[`${username}/ready`] = false;
-        updates[`${username}/role`] = "waiting";
-        updates[`${username}/word`] = "";
-      }
-    });
-    
-    await realtimeDb.ref("players").update(updates);
-
-    // Elect new GM
-    const eligiblePlayers = Object.values(players)
-      .filter(p => p.username !== "gma" && !p.hasBeenGM);
-    
-    if (eligiblePlayers.length > 0) {
-      const nextGM = eligiblePlayers[0].username;
-      await realtimeDb.ref("gameState/gameMaster").set(nextGM);
-      await realtimeDb.ref(`players/${nextGM}/hasBeenGM`).set(true);
-    }
-
-    window.location.reload();
-
-  } catch (error) {
-    console.error("Next round error:", error);
   }
 });
 
-// Debug Functions
-function handleGmaLogin() {
-  const debugControls = document.getElementById("debugControls");
-  if (debugControls) debugControls.classList.remove("hidden");
-  if (setupUI) setupUI.classList.add("hidden");
-  if (waitingRoomUI) waitingRoomUI.classList.add("hidden");
-  if (gameSectionUI) gameSectionUI.classList.add("hidden");
+// Admin System
+function handleAdminLogin() {
+  setupUI.classList.add("hidden");
+  adminUI.classList.remove("hidden");
+  
+  // Player list for admin
+  realtimeDb.ref("players").on("value", (snapshot) => {
+    const players = snapshot.val() || {};
+    document.getElementById("adminPlayerList").innerHTML = Object.keys(players)
+      .map(username => `
+        <li>
+          ${username}
+          <button onclick="removePlayer('${username}')">Remove</button>
+        </li>
+      `).join("");
+  });
 }
 
-window.removePlayer = function(username) {
-  if (currentPlayer === "gma" && username !== "gma") {
-    realtimeDb.ref(`players/${username}`).remove();
+window.removePlayer = async (username) => {
+  await realtimeDb.ref(`players/${username}`).remove();
+};
+
+document.getElementById("resetGame").addEventListener("click", async () => {
+  await realtimeDb.ref("players").remove();
+  await realtimeDb.ref("gameState").set({
+    gameMaster: "",
+    word: "",
+    impostorCount: 1,
+    gameStarted: false,
+    roundActive: false
+  });
+});
+
+// Game Logic
+async function assignRoles(word, impostorCount) {
+  const playersSnap = await realtimeDb.ref("players").once("value");
+  const players = playersSnap.val();
+  const playerList = Object.keys(players).filter(u => u !== "gma");
+  
+  // Select impostors
+  const impostors = [];
+  while (impostors.length < impostorCount) {
+    const randomPlayer = playerList[Math.floor(Math.random() * playerList.length)];
+    if (!impostors.includes(randomPlayer)) {
+      impostors.push(randomPlayer);
+    }
   }
+
+  // Update roles
+  const updates = {};
+  playerList.forEach(username => {
+    updates[`${username}/role`] = impostors.includes(username) ? "impostor" : "player";
+    updates[`${username}/word`] = impostors.includes(username) ? "???" : word;
+    updates[`${username}/ready`] = false;
+  });
+  
+  await realtimeDb.ref("players").update(updates);
 }
 
-window.fullGameReset = function() {
-  if (currentPlayer === "gma") {
-    realtimeDb.ref("players").remove();
-    realtimeDb.ref("gameState").set({
-      gameMaster: "",
-      word: "",
-      impostorCount: 1,
-      gameStarted: false
-    });
-  }
-}
-
-// Initialize Game
-manageGameState();
+// Next Round System
+document.getElementById("nextRound").addEventListener("click", async () => {
+  await realtimeDb.ref("gameState").update({
+    roundActive: false,
+    gameMaster: "",
+    word: ""
+  });
+  
+  const playersSnap = await realtimeDb.ref("players").once("value");
+  const players = playersSnap.val();
+  
+  const updates = {};
+  Object.keys(players).forEach(username => {
+    updates[`${username}/ready`] = false;
+    updates[`${username}/role`] = "waiting";
+  });
+  
+  await realtimeDb.ref("players").update(updates);
+  gameMasterUI.classList.add("hidden");
+  waitingRoomUI.classList.remove("hidden");
+});
