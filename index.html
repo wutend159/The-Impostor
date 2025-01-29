@@ -16,8 +16,11 @@
     <!-- Setup Section -->
     <div id="setup">
       <label for="username">Enter Your Username:</label>
-      <input type="text" id="username" placeholder="Your username">
-      <button id="joinGame">Join Game</button>
+      <input type="text" id="username" placeholder="Your username" required>
+      <button id="joinGame">
+        <span class="default-text">Join Game</span>
+        <span class="loading-text hidden">Joining...</span>
+      </button>
     </div>
 
     <!-- Waiting Room Section -->
@@ -68,15 +71,6 @@
     
     <div id="debugControls" class="hidden">
       <button onclick="fullGameReset()">Reset Entire Game</button>
-    </div>
-
-    <div id="setup">
-      <label for="username">Enter Your Username:</label>
-      <input type="text" id="username" placeholder="Your username" required>
-      <button id="joinGame">
-        <span class="default-text">Join Game</span>
-        <span class="loading-text hidden">Joining...</span>
-      </button>
     </div>
 
   </div>
