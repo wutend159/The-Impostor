@@ -115,6 +115,18 @@ async function startGame(players) {
   }
 }
 
+function setButtonState(buttonId, isLoading) {
+  const btn = document.getElementById(buttonId);
+  if (!btn) return;
+  
+  btn.disabled = isLoading;
+  const defaultText = btn.querySelector('.default-text');
+  const loadingText = btn.querySelector('.loading-text');
+  
+  if (defaultText) defaultText.classList.toggle('hidden', isLoading);
+  if (loadingText) loadingText.classList.toggle('hidden', !isLoading);
+}
+
 // Enhanced State Manager
 function manageGameState() {
   realtimeDb.ref("players").on("value", snapshot => {
@@ -131,6 +143,8 @@ function manageGameState() {
   });
 }
 
+
+
 // Updated Join Handler
 document.getElementById("joinGame").addEventListener("click", async () => {
   const username = document.getElementById("username").value.trim();
@@ -145,17 +159,14 @@ document.getElementById("joinGame").addEventListener("click", async () => {
     }
 
     await initializePlayer(username);
-    setupUI.classList.add("hidden");
-    waitingRoomUI.classList.remove("hidden");
+    const setupUI = document.getElementById("setup");
+    const waitingRoomUI = document.getElementById("waitingRoom");
     setupReadySystem(username);
+    checkGameMasterStatus();
     
   } catch (error) {
     console.error("Join error:", error);
-    if (error.includes("already exists")) {
-      alert("Username taken. Try another.");
-    } else {
-      alert("Connection error. Check console.");
-    }
+    alert(error.includes("exists") ? "Username taken!" : "Join failed. Try again.");
   } finally {
     setButtonState("joinGame", false);
   }
