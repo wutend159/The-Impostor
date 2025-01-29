@@ -1,4 +1,4 @@
-// Firebase configuration (replace with your own)
+// Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyCRlFWyQZ3l0ZeE8424NRdm8sJgBBTb9EE",
   authDomain: "the-impostor-2c85e.firebaseapp.com",
@@ -11,105 +11,106 @@ const firebaseConfig = {
 
 // Initialize Firebase
 firebase.initializeApp(firebaseConfig);
-const realtimeDb = firebase.database(); // Initialize Realtime Database
+const realtimeDb = firebase.database();
 
-let players = [];
-let gameMaster = null;
-let word = "";
-let impostorCount = 1;
 let currentPlayer = null;
 
 // Join Game
 document.getElementById("joinGame").addEventListener("click", () => {
   const username = document.getElementById("username").value;
-  console.log("Join Game button clicked. Username:", username); // Debugging log
   if (username) {
     currentPlayer = username;
-    players.push(username);
-    console.log("Players list updated:", players); // Debugging log
-    updatePlayerList();
 
-    // Hide setup and show waiting room
-    document.getElementById("setup").classList.add("hidden");
-    document.getElementById("waitingRoom").classList.remove("hidden");
-
-    // If this is the first player, make them the Game Master
-    if (players.length === 1) {
-      gameMaster = username;
-      console.log("Game Master set to:", gameMaster); // Debugging log
-      document.getElementById("gameMasterSection").classList.remove("hidden");
-    }
-
-    // Add player to Realtime Database
-    addPlayerToRealtimeDb(username);
-  }
-});
-
-// Start Round
-document.getElementById("startRound").addEventListener("click", () => {
-  word = document.getElementById("word").value;
-  impostorCount = parseInt(document.getElementById("impostorCount").value);
-  if (word && impostorCount > 0) {
-    assignRoles();
-  }
-});
-
-// Add Player to Realtime Database
-function addPlayerToRealtimeDb(username) {
-  realtimeDb.ref("players/" + username).set({
-    username: username,
-    role: "waiting",
-    word: ""
-  }).then(() => {
-    console.log("Player added to Realtime Database:", username); // Debugging log
-  }).catch((error) => {
-    console.error("Error adding player to Realtime Database:", error); // Debugging log
-  });
-}
-
-// Assign Roles
-function assignRoles() {
-  const impostors = chooseImpostors(players, impostorCount);
-  players.forEach((player) => {
-    const isImpostor = impostors.includes(player);
-    const role = isImpostor ? "impostor" : "player";
-    const playerWord = isImpostor ? "Impostor" : word;
-
-    // Update Realtime Database with roles and words
-    realtimeDb.ref("players/" + player).update({
-      role: role,
-      word: playerWord
+    // Add player to Firebase
+    realtimeDb.ref("players/" + username).set({
+      username: username,
+      role: "waiting",
+      word: "",
+      isGameMaster: false // Track Game Master status
     }).then(() => {
-      console.log("Role assigned to player:", player, "Role:", role); // Debugging log
-    }).catch((error) => {
-      console.error("Error assigning role to player:", error); // Debugging log
+      // Hide setup and show waiting room
+      document.getElementById("setup").classList.add("hidden");
+      document.getElementById("waitingRoom").classList.remove("hidden");
     });
-  });
 
-  // Notify players to check their roles
-  alert("Roles have been assigned. Check your role!");
-}
+    // Set the first player as Game Master
+    realtimeDb.ref("gameState").once("value", (snapshot) => {
+      const gameState = snapshot.val();
+      if (!gameState || !gameState.gameMaster) {
+        realtimeDb.ref("gameState").update({
+          gameMaster: username,
+          word: "",
+          impostorCount: 1,
+          gameStarted: false
+        });
+      }
+    });
+  }
+});
 
-// Choose Impostors
-function chooseImpostors(players, count) {
-  const shuffled = players.slice(1).sort(() => 0.5 - Math.random()); // Exclude Game Master
-  return shuffled.slice(0, count);
-}
-
-// Update Player List
-function updatePlayerList() {
+// Listen for Players in Waiting Room
+realtimeDb.ref("players").on("value", (snapshot) => {
+  const players = snapshot.val() || {};
   const playerList = document.getElementById("playerList");
-  playerList.innerHTML = players.map(player => `<li>${player}</li>`).join("");
-}
+  playerList.innerHTML = Object.keys(players).map(username => `<li>${username}</li>`).join("");
+
+  // Show Game Master controls if current user is Game Master
+  realtimeDb.ref("gameState/gameMaster").on("value", (snapshot) => {
+    const gameMaster = snapshot.val();
+    if (gameMaster === currentPlayer) {
+      document.getElementById("gameMasterSection").classList.remove("hidden");
+    } else {
+      document.getElementById("gameMasterSection").classList.add("hidden");
+    }
+  });
+});
+
+// Start Round (Game Master Only)
+document.getElementById("startRound").addEventListener("click", () => {
+  const word = document.getElementById("word").value;
+  const impostorCount = parseInt(document.getElementById("impostorCount").value);
+
+  if (word && impostorCount > 0) {
+    // Update game state
+    realtimeDb.ref("gameState").update({
+      word: word,
+      impostorCount: impostorCount,
+      gameStarted: true
+    });
+
+    // Assign roles to all players
+    realtimeDb.ref("players").once("value", (snapshot) => {
+      const players = snapshot.val();
+      const playerUsernames = Object.keys(players);
+      const impostors = chooseImpostors(playerUsernames, impostorCount);
+
+      playerUsernames.forEach(username => {
+        const isImpostor = impostors.includes(username);
+        realtimeDb.ref("players/" + username).update({
+          role: isImpostor ? "impostor" : "player",
+          word: isImpostor ? "Impostor" : word
+        });
+      });
+    });
+  }
+});
 
 // Listen for Role Updates
 realtimeDb.ref("players/" + currentPlayer).on("value", (snapshot) => {
-  const data = snapshot.val();
-  if (data && data.role !== "waiting") {
+  const playerData = snapshot.val();
+  if (playerData && playerData.role !== "waiting") {
     document.getElementById("waitingRoom").classList.add("hidden");
     document.getElementById("gameSection").classList.remove("hidden");
-
-    document.getElementById("roleDisplay").textContent = `You are the ${data.role}!`;
-    document.getElementById("wordDisplay").textContent = data.role === "impostor" ? "You do not know the word." : `The word is: ${data.word}`;
+    document.getElementById("roleDisplay").textContent = `You are the ${playerData.role}!`;
+    document.getElementById("wordDisplay").textContent = 
+      playerData.role === "impostor" ? 
+      "You do not know the word." : 
+      `The word is: ${playerData.word}`;
   }
 });
+
+// Helper function to choose impostors
+function chooseImpostors(players, count) {
+  const shuffled = [...players].sort(() => 0.5 - Math.random());
+  return shuffled.slice(0, count);
+}
